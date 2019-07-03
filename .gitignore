@@ -1,0 +1,7 @@
+*data*/
+*.log
+pretrained/
+*saves/
+snapshot/
+__pycache__/
+.idea/
