@@ -5,3 +5,4 @@ pretrained/
 snapshot/
 __pycache__/
 .idea/
+result*.txt 
