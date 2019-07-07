@@ -31,6 +31,8 @@ parser.add_argument('-save-best', type=bool, default=True, help='whether to save
 parser.add_argument('-dropout', type=float, default=0.5, help='the probability for dropout [default: 0.5]')
 parser.add_argument('-max-norm', type=float, default=3.0, help='l2 constraint of parameters [default: 3.0]')
 parser.add_argument('-embedding-dim', type=int, default=128, help='number of embedding dimension [default: 128]')
+parser.add_argument('-position_embedding_dim', type=int, default=5,
+                    help='number of position embedding dimension [default: 5]')
 parser.add_argument('-filter-num', type=int, default=100, help='number of each size of filter')
 parser.add_argument('-filter-sizes', type=str, default='3,4,5',
                     help='comma-separated filter sizes to use for convolution')
@@ -47,7 +49,7 @@ parser.add_argument('-pretrained-path', type=str, default='pretrained', help='pa
 parser.add_argument('-device', type=int, default=0, help='device to use for iterate data, -1 mean cpu [default: -1]')
 
 # option
-parser.add_argument('-snapshot', type=str, default=".\\snapshot\\cl_model.pkl",
+parser.add_argument('-snapshot', type=str, default=None,
                     help='filename of model snapshot [default: None]')
 args = parser.parse_args()
 
@@ -80,7 +82,7 @@ def load_dataset(text_field, label_field, args, **kwargs):
 
 
 print('Loading data...')
-text_field = data.Field(lower=True)
+text_field = data.Field()
 label_field = data.Field(sequential=False)
 train_iter, dev_iter = load_dataset(text_field, label_field, args, device=-1, repeat=False, shuffle=True)
 
@@ -91,7 +93,7 @@ if args.static:
 if args.multichannel:
     args.static = True
     args.non_static = True
-args.class_num = len(label_field.vocab)
+args.class_num = len(label_field.vocab) - 1
 args.label = label_field.vocab.itos
 args.label.remove('<unk>')
 args.cuda = args.device != -1 and torch.cuda.is_available()
@@ -111,7 +113,7 @@ if args.cuda:
     torch.cuda.set_device(args.device)
     text_cnn = text_cnn.cuda()
 try:
-    # cl_train.train(train_iter, dev_iter, text_cnn, args)
+    cl_train.train(train_iter, dev_iter, text_cnn, args)
     cl_train.eval(dev_iter, text_cnn, args)
 except KeyboardInterrupt:
     print('Exiting from training early')

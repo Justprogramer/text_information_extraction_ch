@@ -22,13 +22,14 @@ def train(train_iter, dev_iter, model, args):
         if args.lr_decay != 0.:
             optimizer = decay_learning_rate(optimizer, args.lr_decay, epoch, args.lr)
         for batch in train_iter:
-            feature, target = batch.text, batch.label
-            feature = feature.data.t()
+            feature1, feature2, target = batch.text1, batch.text2, batch.label
+            feature1 = feature1.data.t()
+            feature2 = feature2.data.t()
             target = target.data.sub(1)
             if args.cuda:
-                feature, target = feature.cuda(), target.cuda()
+                feature1, feature2, target = feature1.cuda(), feature2.cuda(), target.cuda()
             optimizer.zero_grad()
-            logits = model(feature)
+            logits = model(feature1,feature2)
             loss = F.cross_entropy(logits, target)
             loss.backward()
             optimizer.step()
@@ -63,13 +64,14 @@ def eval(data_iter, model, args):
     preds = []
     golds = []
     for batch in data_iter:
-        feature, target = batch.text, batch.label
-        feature = feature.data.t()
+        feature1, feature2, target = batch.text1, batch.text2, batch.label
+        feature1 = feature1.data.t()
+        feature2 = feature2.data.t()
         target = target.data.sub(1)
         if args.cuda:
-            feature, target = feature.cuda(), target.cuda()
+            feature1, feature2, target = feature1.cuda(), feature2.cuda(), target.cuda()
         with torch.no_grad():
-            logits = model(feature)
+            logits = model(feature1,feature2)
         loss = F.cross_entropy(logits, target)
         avg_loss += loss.item()
         corrects += (torch.max(logits, 1)
@@ -86,7 +88,7 @@ def eval(data_iter, model, args):
 
     with codecs.open("result.txt", "w", "utf-8") as w:
         for index, example in enumerate(data_iter.dataset.examples):
-            w.write("%s\t%s\t%s\n" % (example.label, args.label[preds[index]], "".join(example.text)))
+            w.write("%s\t%s\t%s\n" % (example.label, args.label[preds[index]], "".join(example.text1)))
         w.write("\n%s\n" % classification_report(y_true=golds, y_pred=preds, target_names=args.label))
     return accuracy
 

@@ -165,6 +165,7 @@ def create_cl_data(evidence_paragraph_dict, type=None):
             print("文档《%s》没有对应的数据标签\n" % d)
             continue
         evidence_content = evidence_paragraph_dict[d]
+        last_paragraph = None
         for paragrah in evidence_content:
             paragrah = "。".join(paragrah)
             if len(paragrah) <= 0:
@@ -186,18 +187,20 @@ def create_cl_data(evidence_paragraph_dict, type=None):
                     find_v = str(paragrah).find(v)
                     if find_v != -1:
                         v_count += 1
+            context = paragrah + "\t" + ("" if last_paragraph is None else last_paragraph)
+            last_paragraph = paragrah
             if e_count > v_count:
-                text.append(["E", paragrah])
+                text.append(["E", context])
             elif v_count > e_count:
-                text.append(["V", paragrah])
+                text.append(["V", context])
             else:
-                text.append(["O", paragrah])
+                text.append(["O", context])
     with codecs.open('./data/%s.tsv' % type, "a", "utf-8") as out_file:
         tsv_writer = csv.writer(out_file, delimiter='\t')
         for line in text:
             if len(line[1]) <= 0:
                 continue
-            tsv_writer.writerow([line[0], line[1]])
+            tsv_writer.writerow([line[0], line[1].split("\t")[0], line[1].split("\t")[1]])
 
 
 def create_ner_data(evidence_paragraph_dict, type=None):
@@ -294,4 +297,4 @@ def generate_data():
 
 
 if __name__ == '__main__':
-    generate_data()
+    analyse_cl_data()

@@ -21,7 +21,8 @@ def get_dataset(path, text_field, label_field):
         train='train.tsv', validation='test.tsv',
         fields=[
             ('label', label_field),
-            ('text', text_field)
+            ('text1', text_field),
+            ('text2', text_field)
         ]
     )
     return train, dev
