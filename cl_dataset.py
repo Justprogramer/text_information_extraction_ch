@@ -34,7 +34,8 @@ def generate_test_dataset(path, text_field, file_name):
         path=path, format='tsv', skip_header=False,
         train=file_name,
         fields=[
-            ('text', text_field),
+            ('text1', text_field),
+            ('text2', text_field),
         ]
     )
     return test[0]

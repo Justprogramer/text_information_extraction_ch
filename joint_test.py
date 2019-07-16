@@ -72,7 +72,7 @@ for f in files:
     assert len(preds) == len(lines)
     result = []
     for type, content in zip(preds, lines):
-        print(content)
+        content = content.split("\t")[0]
         if args.label[type] == "V":
             result.append(("V", content.strip(), opinion_ner_model.predict(content.strip() + "。")))
         elif args.label[type] == "E":

@@ -25,7 +25,7 @@ def iob_ranges(words, tags):
             check_if_closing_range()
         elif tag.split('-')[0] == 'I':
             if begin is None:
-                print(tags)
+                # print(tags)
                 begin = i
                 temp_type = tag.split('-')[1]
             check_if_closing_range()

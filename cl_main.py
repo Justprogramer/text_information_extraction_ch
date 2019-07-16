@@ -31,7 +31,7 @@ parser.add_argument('-save-best', type=bool, default=True, help='whether to save
 parser.add_argument('-dropout', type=float, default=0.5, help='the probability for dropout [default: 0.5]')
 parser.add_argument('-max-norm', type=float, default=3.0, help='l2 constraint of parameters [default: 3.0]')
 parser.add_argument('-embedding-dim', type=int, default=128, help='number of embedding dimension [default: 128]')
-parser.add_argument('-position_embedding_dim', type=int, default=5,
+parser.add_argument('-position_embedding_dim', type=int, default=20,
                     help='number of position embedding dimension [default: 5]')
 parser.add_argument('-filter-num', type=int, default=100, help='number of each size of filter')
 parser.add_argument('-filter-sizes', type=str, default='3,4,5',
@@ -49,7 +49,7 @@ parser.add_argument('-pretrained-path', type=str, default='pretrained', help='pa
 parser.add_argument('-device', type=int, default=0, help='device to use for iterate data, -1 mean cpu [default: -1]')
 
 # option
-parser.add_argument('-snapshot', type=str, default=None,
+parser.add_argument('-snapshot', type=str, default='./snapshot/cl_model.pkl',
                     help='filename of model snapshot [default: None]')
 args = parser.parse_args()
 
@@ -105,15 +105,15 @@ for attr, value in sorted(args.__dict__.items()):
         continue
     print('\t{}={}'.format(attr.upper(), value))
 text_cnn = cl_model.TextCNN(args)
-if args.snapshot:
-    print('\nLoading model from {}...\n'.format(args.snapshot))
-    text_cnn.load_state_dict(torch.load(args.snapshot))
 
 if args.cuda:
     torch.cuda.set_device(args.device)
     text_cnn = text_cnn.cuda()
 try:
     cl_train.train(train_iter, dev_iter, text_cnn, args)
+    if args.snapshot:
+        print('\nLoading model from {}...\n'.format(args.snapshot))
+        text_cnn.load_state_dict(torch.load(args.snapshot))
     cl_train.eval(dev_iter, text_cnn, args)
 except KeyboardInterrupt:
     print('Exiting from training early')

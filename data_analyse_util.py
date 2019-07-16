@@ -6,6 +6,7 @@ import os
 import pandas as pd
 
 import util.common_util as my_util
+from collections import Counter
 
 # 证据名称列表
 evidence_list = list()
@@ -18,8 +19,11 @@ test_evidence_paragraph_dict = dict()
 # 笔录中存在的证据对应关系 文件名:[举证方 Evidence(E) ,证据名称 Trigger(T) ,证实内容 Content(C), 质证意见 View(V),质证方 Anti-Evidence(A)]
 tag_dic = dict()
 
+other_count, evidence_count, view_count = 0, 0, 0
+
 
 def analyse_cl_data():
+    global other_count, evidence_count, view_count
     analyse_data_excel_content()
 
     length = len(content_dict.values())
@@ -42,7 +46,10 @@ def analyse_cl_data():
     # analyse_dir_document()
     create_cl_data(train_evidence_paragraph_dict, "train")
     create_cl_data(dev_evidence_paragraph_dict, "train")
+    print("\ntrain other_count:%s,evidence_count:%s,view_count:%s," % (other_count, evidence_count, view_count))
+    other_count, evidence_count, view_count = 0, 0, 0
     create_cl_data(test_evidence_paragraph_dict, "test")
+    print("\ntest other_count:%s,evidence_count:%s,view_count:%s," % (other_count, evidence_count, view_count))
 
 
 def analyse_ner_data():
@@ -146,10 +153,10 @@ def extract_evidence_paragraph(content, type=None):
         if d not in tag_dic:
             continue
         start, end = my_util.check_evidence_paragraph(content[d])
-        print(
-            "提取证据段落完成《%s》(%s)，起始位置：%s,结束位置：%s\n%s\n%s" % (
-                d, len(content_dict[d]), start, end, content_dict[d][start],
-                content_dict[d][end - 1]))
+        # print(
+        #     "提取证据段落完成《%s》(%s)，起始位置：%s,结束位置：%s\n%s\n%s" % (
+        #         d, len(content_dict[d]), start, end, content_dict[d][start],
+        #         content_dict[d][end - 1]))
         if type == "train":
             train_evidence_paragraph_dict[d] = content[d][start:end]
         elif type == "dev":
@@ -159,42 +166,53 @@ def extract_evidence_paragraph(content, type=None):
 
 
 def create_cl_data(evidence_paragraph_dict, type=None):
+    global other_count, evidence_count, view_count
     text = []
     for d in evidence_paragraph_dict:
         if d not in tag_dic:
-            print("文档《%s》没有对应的数据标签\n" % d)
+            # print("文档《%s》没有对应的数据标签\n" % d)
             continue
         evidence_content = evidence_paragraph_dict[d]
         last_paragraph = None
         for paragrah in evidence_content:
             paragrah = "。".join(paragrah)
+            tag = ["O"] * len(paragrah)
             if len(paragrah) <= 0:
                 continue
-            e_count, v_count = 0, 0
             for [_, t, C, V, _] in tag_dic[d]:
                 find_t = str(paragrah).find(t)
-                if find_t != -1:
-                    e_count += 1
+                while find_t != -1 and tag[find_t] == "O":
+                    tag = tag[:find_t] + ["E"] * len(t) + tag[find_t + len(t):]
+                    find_t = str(paragrah).find(t, find_t)
                 for c in C:
                     if len(c) <= 1:
                         continue
                     find_c = str(paragrah).find(c)
-                    if find_c != -1:
-                        e_count += 1
+                    while find_c != -1 and tag[find_c] == "O":
+                        tag = tag[:find_c] + ["E"] * len(c) + tag[find_c + len(c):]
+                        find_c = str(paragrah).find(c, find_c)
                 for v in V:
                     if len(v) <= 1:
                         continue
                     find_v = str(paragrah).find(v)
-                    if find_v != -1:
-                        v_count += 1
+                    while find_v != -1 and tag[find_v] == "O":
+                        tag = tag[:find_v] + ["V"] * len(v) + tag[find_v + len(v):]
+                        find_v = str(paragrah).find(v, find_v)
             context = paragrah + "\t" + ("" if last_paragraph is None else last_paragraph)
             last_paragraph = paragrah
-            if e_count > v_count:
+            counter = Counter(tag)
+            if counter["E"] > counter["V"] and counter["O"] - counter["E"] < 5:
                 text.append(["E", context])
-            elif v_count > e_count:
+                evidence_count += 1
+            elif counter["E"] < counter["V"] and counter["O"] - counter["V"] < 5:
                 text.append(["V", context])
+                view_count += 1
             else:
-                text.append(["O", context])
+                if type == "train" and other_count % 10 == 0:
+                    text.append(["O", context])
+                else:
+                    text.append(["O", context])
+                other_count += 1
     with codecs.open('./data/%s.tsv' % type, "a", "utf-8") as out_file:
         tsv_writer = csv.writer(out_file, delimiter='\t')
         for line in text:
@@ -290,11 +308,15 @@ def generate_data():
         # 提取重要段落
         with codecs.open(evidence_file_path, "w", "utf-8") as out_file:
             tsv_writer = csv.writer(out_file, delimiter='\t')
+            last_line = None
             for line in content_dict[key][start:end]:
                 if len(line) <= 0:
                     continue
-                tsv_writer.writerow(["。".join(line)])
+                last_line = "" if last_line is None else last_line
+                tsv_writer.writerow(["。".join(line), last_line])
+                last_line = "。".join(line)
 
 
 if __name__ == '__main__':
     analyse_cl_data()
+    # generate_data()
