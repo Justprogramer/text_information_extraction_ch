@@ -78,6 +78,36 @@ def analyse_ner_data():
     create_ner_data(test_evidence_paragraph_dict, "ner_test")
 
 
+def analyse_joint_data():
+    global other_count, evidence_count, view_count
+    analyse_data_excel_content()
+
+    length = len(content_dict.values())
+    train_content_keys = sorted(content_dict)[:int(length * 0.8)]
+    dev_content_keys = sorted(content_dict)[int(length * 0.8):int(length * 0.9)]
+    test_content_keys = sorted(content_dict)[int(length * 0.9):]
+    train_content, dev_content, test_content = {}, {}, {}
+    for key in train_content_keys:
+        train_content[key] = content_dict[key]
+    for key in dev_content_keys:
+        dev_content[key] = content_dict[key]
+    for key in test_content_keys:
+        test_content[key] = content_dict[key]
+
+    analyse_data_excel_tags()
+    extract_evidence_paragraph(train_content, "train")
+    extract_evidence_paragraph(dev_content, "dev")
+    extract_evidence_paragraph(test_content, "test")
+
+    # analyse_dir_document()
+    create_joint_data(train_evidence_paragraph_dict, "train")
+    create_joint_data(dev_evidence_paragraph_dict, "train")
+    print("\ntrain other_count:%s,evidence_count:%s,view_count:%s," % (other_count, evidence_count, view_count))
+    other_count, evidence_count, view_count = 0, 0, 0
+    create_joint_data(test_evidence_paragraph_dict, "test")
+    print("\ntest other_count:%s,evidence_count:%s,view_count:%s," % (other_count, evidence_count, view_count))
+
+
 # 从excel中加载数据
 def analyse_data_excel_content(title=None, content=None):
     if title is None and content is None:
@@ -287,6 +317,80 @@ def create_ner_data(evidence_paragraph_dict, type=None):
     print("\ncount:evidence[%d],opinion[%d]" % (evidence_count, opinion_count))
 
 
+def create_joint_data(evidence_paragraph_dict, type=None):
+    global other_count, evidence_count, view_count
+    text = []
+    for d in evidence_paragraph_dict:
+        if d not in tag_dic:
+            continue
+        evidence_content = evidence_paragraph_dict[d]
+        for paragrah in evidence_content:
+            paragrah = "。".join(paragrah)
+            tag = ["O"] * len(paragrah)
+            if len(paragrah) <= 0:
+                continue
+            for [E, t, C, V, A] in tag_dic[d]:
+                has_t, has_c, has_v = False, False, False
+                find_t = str(paragrah).find(t)
+                while find_t != -1 and tag[find_t] == "O":
+                    has_t = True
+                    tag = tag[:find_t] + ["B-T"] + ["I-T"] * (len(t) - 1) + tag[find_t + len(t):]
+                    find_t = str(paragrah).find(t, find_t)
+                for c in C:
+                    if len(c) <= 1:
+                        continue
+                    find_c = str(paragrah).find(c)
+                    while find_c != -1 and tag[find_c] == "O":
+                        has_c = True
+                        tag = tag[:find_c] + ["B-C"] + ["I-C"] * (len(c) - 1) + tag[find_c + len(c):]
+                        find_c = str(paragrah).find(c, find_c)
+                for v in V:
+                    if len(v) <= 1:
+                        continue
+                    find_v = str(paragrah).find(v)
+                    while find_v != -1 and tag[find_v] == "O":
+                        has_v = True
+                        tag = tag[:find_v] + ["B-O"] + ["I-O"] * (len(v) - 1) + tag[find_v + len(v):]
+                        find_v = str(paragrah).find(v, find_v)
+                if len(A.strip()) > 1:
+                    find_a = str(paragrah).find(A + "：")
+                    if find_a != -1 and has_v and tag[find_a] == "O":
+                        tag = tag[:find_a] + ["B-A"] + ["I-A"] * (len(A) - 1) + tag[find_a + len(A):]
+                if len(E.strip()) > 1:
+                    find_e = str(paragrah).find(E + "：")
+                    if find_e != -1 and (has_t or has_c) and tag[find_e] == "O":
+                        tag = tag[:find_e] + ["B-E"] + ["I-E"] * (len(E) - 1) + tag[find_e + len(E):]
+            assert len(paragrah) == len(tag)
+            counter = Counter(tag)
+            counter_e = counter["B-E"] + counter["I-E"] + counter["B-C"] + counter["I-C"] + counter["B-T"] + counter[
+                "I-T"]
+            counter_a = counter["B-A"] + counter["I-A"] + counter["B-O"] + counter["I-O"]
+            if counter_e > counter_a and counter["O"] - counter_e < 5:
+                for i, label in enumerate(tag):
+                    if label not in ["O", "B-E", "I-E", "B-T", "I-T", "B-C", "I-C"]:
+                        tag[i] = tag[i - 1] if tag[i - 1] in ["O", "B-E", "I-E", "B-T", "I-T", "B-C", "I-C"] else "O"
+                text.append(["E", paragrah, tag, ["O"] * len(paragrah)])
+                evidence_count += 1
+            elif counter_e < counter_a and counter["O"] - counter_a < 5:
+                for i, label in enumerate(tag):
+                    if label not in ["O", "B-A", "I-A", "B-O", "I-O"]:
+                        tag[i] = tag[i - 1] if tag[i - 1] in ["O", "B-A", "I-A", "B-O", "I-O"] else "O"
+                text.append(["V", paragrah, ["O"] * len(paragrah), tag])
+                view_count += 1
+            else:
+                if type == "train" and other_count % 10 == 0:
+                    text.append(["O", paragrah, ["O"] * len(paragrah), ["O"] * len(paragrah)])
+                else:
+                    text.append(["O", paragrah, ["O"] * len(paragrah), ["O"] * len(paragrah)])
+                other_count += 1
+    with codecs.open('./joint_data/%s.tsv' % type, "a", "utf-8") as out_file:
+        tsv_writer = csv.writer(out_file, delimiter='\t')
+        for line in text:
+            if len(line[1]) <= 0:
+                continue
+            tsv_writer.writerow([line[0], line[1], " ".join(line[2]), " ".join(line[3])])
+
+
 def generate_data():
     test_all_data_path = '.\\test_all_data'
     if not os.path.exists(test_all_data_path):
@@ -318,5 +422,11 @@ def generate_data():
 
 
 if __name__ == '__main__':
-    analyse_cl_data()
+    # analyse_cl_data()
+    # analyse_joint_data()
     # generate_data()
+    analyse_data_excel_content()
+    analyse_data_excel_tags()
+    for title in content_dict:
+        if title not in tag_dic:
+            print("%s\n" % title)

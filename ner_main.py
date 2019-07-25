@@ -15,10 +15,10 @@ evidence_test_path = './data/ner_test_evidence.txt'
 opinion_test_path = './data/ner_test_opinion.txt'
 vec_path = os.path.join(DEFAULT_CONFIG['pretrained_path'], DEFAULT_CONFIG['pretrained_name'])
 
-# ner_model.train(evidence_train_path, dev_path=evidence_dev_path, save_path='./ner_saves',
-#                 type="evidence")
-# ner_model.train(opinion_train_path, dev_path=opinion_dev_path, save_path='./ner_saves',
-#                 type="opinion")
+evidence_ner_model.train(evidence_train_path, dev_path=evidence_dev_path, save_path='./ner_saves',
+                type="evidence")
+opinion_ner_model.train(opinion_train_path, dev_path=opinion_dev_path, save_path='./ner_saves',
+                type="opinion")
 evidence_ner_model.load('./ner_saves', type="evidence")
 opinion_ner_model.load('./ner_saves', type="opinion")
 evidence_ner_model.test(evidence_test_path)
