@@ -8,7 +8,7 @@ import torch
 import torchtext.data as data
 from torchtext.vocab import Vectors
 
-import cl_dataset
+import dataset
 import cl_model
 import cl_train
 from ner_tool import ner_tool
@@ -20,7 +20,7 @@ parser.add_argument('-momentum', type=float, default=0., help='initial momentum 
 parser.add_argument('-l2_rate', type=float, default=1.0e-8, help='initial l2_rate [default: 1.0e-8]')
 parser.add_argument('-lr_decay', type=float, default=0.05, help='initial learning rate ecay [default: 0.05]')
 parser.add_argument('-epochs', type=int, default=10000, help='number of epochs for train [default: 256]')
-parser.add_argument('-batch-size', type=int, default=64, help='batch size for training [default: 128]')
+parser.add_argument('-batch-size', type=int, default=32, help='batch size for training [default: 128]')
 parser.add_argument('-log-interval', type=int, default=1,
                     help='how many steps to wait before logging training status [default: 1]')
 parser.add_argument('-save-dir', type=str, default='snapshot', help='where to save the snapshot')
@@ -60,7 +60,7 @@ def load_word_vectors(model_name, model_path):
 
 
 def load_dataset(text_field, label_field, args, **kwargs):
-    train_dataset, dev_dataset = cl_dataset.get_dataset('data', text_field, label_field)
+    train_dataset, dev_dataset = dataset.get_dataset('data', text_field, label_field)
     if args.static and args.pretrained_name and args.pretrained_path:
         vectors = load_word_vectors(args.pretrained_name, args.pretrained_path)
         text_field.build_vocab(train_dataset, dev_dataset, vectors=vectors)

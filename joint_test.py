@@ -8,7 +8,7 @@ import torch
 from torchtext import data
 from torchtext.vocab import Vectors
 
-import cl_dataset
+import dataset as cl_dataset
 import cl_model
 import cl_train
 from ner_module import NER

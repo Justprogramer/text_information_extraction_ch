@@ -46,6 +46,12 @@ def is_nan(num):
     return num != num
 
 
+def replace_nan(num):
+    if is_nan(num):
+        return ""
+    return num
+
+
 def tokens2id_array(items, voc, oov_id=1):
     """
     将词序列映射为id序列

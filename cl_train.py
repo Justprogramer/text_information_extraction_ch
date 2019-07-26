@@ -56,7 +56,7 @@ def train(train_iter, dev_iter, model, args):
         else:
             if patience >= args.max_patience:
                 print('\nearly stop by {} patience, f1: {:.4f}%'.format(args.max_patience, best_f1))
-                raise KeyboardInterrupt
+                break
 
 
 def eval(data_iter, model, args):
@@ -82,7 +82,7 @@ def eval(data_iter, model, args):
     size = len(data_iter.dataset)
     avg_loss /= size
     accuracy = 100.0 * corrects / size
-    f1 = f1_score(y_true=golds, y_pred=preds, average="micro")
+    f1 = f1_score(y_true=golds, y_pred=preds, average="macro")
     print('\nEvaluation - loss: {:.6f}  acc: {:.4f}%   f1: {:.4f} %({}/{}) \n'.format(avg_loss,
                                                                                       accuracy,
                                                                                       f1,

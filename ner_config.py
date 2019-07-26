@@ -3,9 +3,11 @@ import torch
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DEFAULT_CONFIG = {
-    'lr': 0.02,
+    'lr': 0.015,
     'epoch': 1000,
     'lr_decay': 0.05,
+    'l2_rate': 1.0e-8,
+    'momentum': 0.,
     'batch_size': 128,
     'dropout': 0.5,
     'static': True,
@@ -21,5 +23,5 @@ DEFAULT_CONFIG = {
     'save_path': './saves',
     'pretrained_path': './pretrained',
     'pretrained_name': 'sgns.zhihu.word',
-    'max_patience': 10,
+    'max_patience': 20,
 }
