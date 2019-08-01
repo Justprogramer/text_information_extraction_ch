@@ -9,6 +9,32 @@ import torch.nn.functional as F
 from sklearn.metrics import classification_report, f1_score
 
 
+def construct_features(batch, args):
+    (feature1, lenght1), (feature2, lenght2), (feature3, lenght3) \
+        = batch.text1, batch.text2, batch.text3
+    feature1 = feature1.data.t()
+    feature2 = feature2.data.t()
+    feature3 = feature3.data.t()
+    features = None
+    position = None
+    max_length = feature1.size()[-1] + feature2.size()[-1] + feature3.size()[-1]
+    for index, (feat_1, feat_2, feat_3) in enumerate(zip(feature1, feature2, feature3)):
+        pad_length = max_length - lenght1[index] - lenght2[index] - lenght3[index]
+        pad_tensor = torch.LongTensor([args.text_field.vocab.stoi['<pad>']]).expand(pad_length)
+        feat_tensor = torch.cat(
+            (feat_1[:lenght1[index]], feat_2[:lenght2[index]], feat_3[:lenght3[index]], pad_tensor), -1).unsqueeze(0)
+        pad_tensor = torch.cat(
+            (torch.ones(lenght1[index]), torch.zeros(max_length - lenght1[index])), -1).unsqueeze(0)
+        if features is None:
+            features = feat_tensor
+            position = pad_tensor
+        else:
+            features = torch.cat([features, feat_tensor], 0)
+            position = torch.cat([position, pad_tensor], 0)
+    max_length = features.ne(1).sum(1).max()
+    return features[:, :max_length], position[:, :max_length].long(), batch.label
+
+
 def train(train_iter, dev_iter, model, args):
     if args.cuda:
         model.cuda()
@@ -22,14 +48,12 @@ def train(train_iter, dev_iter, model, args):
         if args.lr_decay != 0.:
             optimizer = decay_learning_rate(optimizer, args.lr_decay, epoch, args.lr)
         for batch in train_iter:
-            feature1, feature2, target = batch.text1, batch.text2, batch.label
-            feature1 = feature1.data.t()
-            feature2 = feature2.data.t()
+            features, position_tensor, target = construct_features(batch, args)
             target = target.data.sub(1)
             if args.cuda:
-                feature1, feature2, target = feature1.cuda(), feature2.cuda(), target.cuda()
+                features, position_tensor, target = features.cuda(), position_tensor.cuda(), target.cuda()
             optimizer.zero_grad()
-            logits = model(feature1, feature2)
+            logits = model(features, position_tensor)
             loss = F.cross_entropy(logits, target)
             loss.backward()
             optimizer.step()
@@ -65,14 +89,12 @@ def eval(data_iter, model, args):
     preds = []
     golds = []
     for batch in data_iter:
-        feature1, feature2, target = batch.text1, batch.text2, batch.label
-        feature1 = feature1.data.t()
-        feature2 = feature2.data.t()
+        features, length_main, target = construct_features(batch, args)
         target = target.data.sub(1)
         if args.cuda:
-            feature1, feature2, target = feature1.cuda(), feature2.cuda(), target.cuda()
+            features, length_main, target = features.cuda(), length_main.cuda(), target.cuda()
         with torch.no_grad():
-            logits = model(feature1, feature2)
+            logits = model(features, length_main)
         loss = F.cross_entropy(logits, target)
         avg_loss += loss.item()
         corrects += (torch.max(logits, 1)
@@ -89,7 +111,7 @@ def eval(data_iter, model, args):
                                                                                       corrects,
                                                                                       size))
 
-    with codecs.open("result.txt", "w", "utf-8") as w:
+    with codecs.open("cl_result.txt", "w", "utf-8") as w:
         for index, example in enumerate(data_iter.dataset.examples):
             w.write("%s\t%s\t%s\n" % (example.label, args.label[preds[index]], "".join(example.text1)))
         w.write("\n%s\n" % classification_report(y_true=golds, y_pred=preds, target_names=args.label))

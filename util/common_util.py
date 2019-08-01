@@ -33,6 +33,8 @@ def split_paragraph(str):
 def clean_text(str):
     if str is None or is_nan(str):
         return ""
+    if str[0] == "？":
+        str = "审" + str[1:]
     return re.sub("[\r\n\\s]+", "", str)
 
 

@@ -202,6 +202,7 @@ def create_cl_data(evidence_paragraph_dict, type=None):
             continue
         evidence_content = evidence_paragraph_dict[d]
         last_paragraph = None
+        last_last_paragraph = None
         for paragraph in evidence_content:
             paragraph = "。".join(paragraph)
             paragraph = my_util.clean_text(paragraph)
@@ -210,28 +211,30 @@ def create_cl_data(evidence_paragraph_dict, type=None):
             paragraph_type = "O"
             if len(paragraph) <= 0:
                 continue
-            for [E, T, C] in evidence_dict[d]:
-                find_e, find_t, find_c = -1, -1, -1
-                if len(E) > 0:
-                    find_e = str(paragraph).find(E)
-                if len(T) > 1:
-                    find_t = str(paragraph).find(T)
-                if len(C) > 1:
-                    find_c = str(paragraph).find(C)
-                if find_e == 0 and find_t > -1 or find_c > -1:
-                    paragraph_type = "E"
+            for [A, O] in opinion_dict[d]:
+                find_o, find_a = -1, -1
+                if len(A) > 0:
+                    find_a = str(paragraph).find(A)
+                if len(O) > 1:
+                    find_o = str(paragraph).find(O)
+                if find_a == 0 and find_o > -1:
+                    paragraph_type = "V"
                     break
             if paragraph_type == "O":
-                for [A, O] in opinion_dict[d]:
-                    find_o, find_a = -1, -1
-                    if len(A) > 0:
-                        find_a = str(paragraph).find(A)
-                    if len(O) > 1:
-                        find_o = str(paragraph).find(O)
-                    if find_a == 0 and find_o > -1:
-                        paragraph_type = "V"
+                for [E, T, C] in evidence_dict[d]:
+                    find_e, find_t, find_c = -1, -1, -1
+                    if len(E) > 0:
+                        find_e = str(paragraph).find(E)
+                    if len(T) > 1:
+                        find_t = str(paragraph).find(T)
+                    if len(C) > 1:
+                        find_c = str(paragraph).find(C)
+                    if find_e == 0 and find_t > -1 or find_c > -1:
+                        paragraph_type = "E"
                         break
-            context = paragraph + "\t" + ("" if last_paragraph is None else last_paragraph)
+            context = paragraph + "\t" + ("" if last_paragraph is None else last_paragraph) + "\t" \
+                      + ("" if last_last_paragraph is None else last_last_paragraph)
+            last_last_paragraph = last_paragraph
             last_paragraph = paragraph
             if paragraph_type == "E":
                 text.append(["E", context])
@@ -250,14 +253,14 @@ def create_cl_data(evidence_paragraph_dict, type=None):
         for line in text:
             if len(line[1]) <= 0:
                 continue
-            tsv_writer.writerow([line[0], line[1].split("\t")[0], line[1].split("\t")[1]])
+            tsv_writer.writerow([line[0], line[1].split("\t")[0], line[1].split("\t")[1], line[1].split("\t")[2]])
 
 
 def create_ner_data(evidence_paragraph_dict, type=None):
     evidence_count = 0
     opinion_count = 0
     for d in evidence_paragraph_dict:
-        if d not in evidence_dict:
+        if d not in evidence_dict or len(evidence_dict[d]) == 0:
             continue
         evidence_content = evidence_paragraph_dict[d]
         for paragraph in evidence_content:
@@ -267,36 +270,36 @@ def create_ner_data(evidence_paragraph_dict, type=None):
                 paragraph += "。"
             tag = ["O"] * len(paragraph)
             paragraph_type = "O"
-            for [E, T, C] in evidence_dict[d]:
-                find_e, find_t, find_c = -1, -1, -1
-                if len(E) > 0:
-                    find_e = str(paragraph).find(E)
-                    if find_e == 0 and tag[find_e] == "O":
-                        tag = tag[:find_e] + ["B-E"] + ["I-E"] * (len(E) - 1) + tag[find_e + len(E):]
-                if len(T) > 0:
-                    find_t = str(paragraph).find(T)
-                    if find_t != -1 and tag[find_t] == "O":
-                        tag = tag[:find_t] + ["B-T"] + ["I-T"] * (len(T) - 1) + tag[find_t + len(T):]
-                if len(C) > 0:
-                    find_c = str(paragraph).find(C)
-                    if find_c != -1 and tag[find_c] == "O":
-                        tag = tag[:find_c] + ["B-C"] + ["I-C"] * (len(C) - 1) + tag[find_c + len(C):]
-                if find_e == 0 and find_t > -1 or find_c > -1:
-                    paragraph_type = "E"
+            for [A, O] in opinion_dict[d]:
+                find_o, find_a = -1, -1
+                if len(A) > 0:
+                    find_a = str(paragraph).find(A)
+                    if find_a == 0 and tag[find_a] == "O":
+                        tag = tag[:find_a] + ["B-A"] + ["I-A"] * (len(A) - 1) + tag[find_a + len(A):]
+                if len(O) > 0:
+                    find_o = str(paragraph).find(O)
+                    if find_o != -1 and tag[find_o] == "O":
+                        tag = tag[:find_o] + ["B-O"] + ["I-O"] * (len(O) - 1) + tag[find_o + len(O):]
+                if find_a == 0 and find_o > -1:
+                    paragraph_type = "V"
             if paragraph_type == "O":
                 tag = ["O"] * len(paragraph)
-                for [A, O] in opinion_dict[d]:
-                    find_o, find_a = -1, -1
-                    if len(A) > 0:
-                        find_a = str(paragraph).find(A)
-                        if find_a == 0 and tag[find_a] == "O":
-                            tag = tag[:find_a] + ["B-A"] + ["I-A"] * (len(A) - 1) + tag[find_a + len(A):]
-                    if len(O) > 0:
-                        find_o = str(paragraph).find(O)
-                        if find_o != -1 and tag[find_o] == "O":
-                            tag = tag[:find_o] + ["B-O"] + ["I-O"] * (len(O) - 1) + tag[find_o + len(O):]
-                    if find_a == 0 and find_o > -1:
-                        paragraph_type = "V"
+                for [E, T, C] in evidence_dict[d]:
+                    find_e, find_t, find_c = -1, -1, -1
+                    if len(E) > 0:
+                        find_e = str(paragraph).find(E)
+                        if find_e == 0 and tag[find_e] == "O":
+                            tag = tag[:find_e] + ["B-E"] + ["I-E"] * (len(E) - 1) + tag[find_e + len(E):]
+                    if len(T) > 0:
+                        find_t = str(paragraph).find(T)
+                        if find_t != -1 and tag[find_t] == "O":
+                            tag = tag[:find_t] + ["B-T"] + ["I-T"] * (len(T) - 1) + tag[find_t + len(T):]
+                    if len(C) > 0:
+                        find_c = str(paragraph).find(C)
+                        if find_c != -1 and tag[find_c] == "O":
+                            tag = tag[:find_c] + ["B-C"] + ["I-C"] * (len(C) - 1) + tag[find_c + len(C):]
+                    if find_e == 0 and find_t > -1 or find_c > -1:
+                        paragraph_type = "E"
             assert len(paragraph) == len(tag)
             if paragraph_type == "V":
                 for i, label in enumerate(tag):
@@ -323,7 +326,7 @@ def create_joint_data(evidence_paragraph_dict, type=None):
     global other_count, evidence_count, view_count
     text = []
     for d in evidence_paragraph_dict:
-        if d not in evidence_dict:
+        if d not in evidence_dict or len(evidence_dict[d]) == 0:
             continue
         evidence_content = evidence_paragraph_dict[d]
         for paragraph in evidence_content:
@@ -335,36 +338,36 @@ def create_joint_data(evidence_paragraph_dict, type=None):
             paragraph_type = "O"
             if len(paragraph) <= 4:
                 continue
-            for [E, T, C] in evidence_dict[d]:
-                find_e, find_t, find_c = -1, -1, -1
-                if len(E) > 0:
-                    find_e = str(paragraph).find(E)
-                    if find_e == 0 and tag[find_e] == "O":
-                        tag = tag[:find_e] + ["B-E"] + ["I-E"] * (len(E) - 1) + tag[find_e + len(E):]
-                if len(T) > 0:
-                    find_t = str(paragraph).find(T)
-                    if find_t != -1 and tag[find_t] == "O":
-                        tag = tag[:find_t] + ["B-T"] + ["I-T"] * (len(T) - 1) + tag[find_t + len(T):]
-                if len(C) > 0:
-                    find_c = str(paragraph).find(C)
-                    if find_c != -1 and tag[find_c] == "O":
-                        tag = tag[:find_c] + ["B-C"] + ["I-C"] * (len(C) - 1) + tag[find_c + len(C):]
-                if find_e == 0 and find_t > -1 or find_c > -1:
-                    paragraph_type = "E"
+            for [A, O] in opinion_dict[d]:
+                find_o, find_a = -1, -1
+                if len(A) > 0:
+                    find_a = str(paragraph).find(A)
+                    if find_a == 0 and tag[find_a] == "O":
+                        tag = tag[:find_a] + ["B-A"] + ["I-A"] * (len(A) - 1) + tag[find_a + len(A):]
+                if len(O) > 0:
+                    find_o = str(paragraph).find(O)
+                    if find_o != -1 and tag[find_o] == "O":
+                        tag = tag[:find_o] + ["B-O"] + ["I-O"] * (len(O) - 1) + tag[find_o + len(O):]
+                if find_a == 0 and find_o > -1:
+                    paragraph_type = "V"
             if paragraph_type == "O":
                 tag = ["O"] * len(paragraph)
-                for [A, O] in opinion_dict[d]:
-                    find_o, find_a = -1, -1
-                    if len(A) > 0:
-                        find_a = str(paragraph).find(A)
-                        if find_a == 0 and tag[find_a] == "O":
-                            tag = tag[:find_a] + ["B-A"] + ["I-A"] * (len(A) - 1) + tag[find_a + len(A):]
-                    if len(O) > 0:
-                        find_o = str(paragraph).find(O)
-                        if find_o != -1 and tag[find_o] == "O":
-                            tag = tag[:find_o] + ["B-O"] + ["I-O"] * (len(O) - 1) + tag[find_o + len(O):]
-                    if find_a == 0 and find_o > -1:
-                        paragraph_type = "V"
+                for [E, T, C] in evidence_dict[d]:
+                    find_e, find_t, find_c = -1, -1, -1
+                    if len(E) > 0:
+                        find_e = str(paragraph).find(E)
+                        if find_e == 0 and tag[find_e] == "O":
+                            tag = tag[:find_e] + ["B-E"] + ["I-E"] * (len(E) - 1) + tag[find_e + len(E):]
+                    if len(T) > 0:
+                        find_t = str(paragraph).find(T)
+                        if find_t != -1 and tag[find_t] == "O":
+                            tag = tag[:find_t] + ["B-T"] + ["I-T"] * (len(T) - 1) + tag[find_t + len(T):]
+                    if len(C) > 0:
+                        find_c = str(paragraph).find(C)
+                        if find_c != -1 and tag[find_c] == "O":
+                            tag = tag[:find_c] + ["B-C"] + ["I-C"] * (len(C) - 1) + tag[find_c + len(C):]
+                    if find_e == 0 and find_t > -1 or find_c > -1:
+                        paragraph_type = "E"
             assert len(paragraph) == len(tag)
             if paragraph_type == "E":
                 for i, label in enumerate(tag):
@@ -431,7 +434,7 @@ def title_with_no_tag():
 
 
 if __name__ == '__main__':
-    # analyse_cl_data()
-    analyse_ner_data()
+    analyse_cl_data()
+    # analyse_ner_data()
     # analyse_joint_data()
     # generate_data()

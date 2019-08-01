@@ -10,8 +10,8 @@ regex = re.compile(r'[^\u4e00-\u9fa5aA-Za-z0-9]')
 
 
 def word_cut(text):
-    text = regex.sub(' ', text)
-    return [word for word in jieba.cut(text) if word.strip()]
+    # text = regex.sub(' ', text)
+    return [word for word in text if word.strip()]
 
 
 def joint_word_cut(text):
@@ -30,7 +30,8 @@ def get_dataset(path, text_field, label_field):
         fields=[
             ('label', label_field),
             ('text1', text_field),
-            ('text2', text_field)
+            ('text2', text_field),
+            ('text3', text_field)
         ]
     )
     return train, dev

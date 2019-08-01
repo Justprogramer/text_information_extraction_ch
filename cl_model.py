@@ -4,6 +4,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class SelfAttention(nn.Module):
+    def __init__(self, hidden_dim):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.projection = nn.Sequential(
+            nn.Linear(hidden_dim, 64),
+            nn.ReLU(True),
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, inputs):
+        # (B, L, H) -> (B , L, 1)
+        energy = self.projection(inputs)
+        weights = F.softmax(energy.squeeze(-1), dim=1)
+        # (B, L, H) * (B, L, 1) -> (B, H)
+        outputs = inputs * weights.unsqueeze(-1)
+        return outputs, weights
+
+
 class TextCNN(nn.Module):
     def __init__(self, args):
         super(TextCNN, self).__init__()
@@ -26,33 +45,26 @@ class TextCNN(nn.Module):
             chanel_num += 1
         else:
             self.embedding2 = None
+        self.embedding_dim = embedding_dimension + position_embedding_dimension
+        self.attention = SelfAttention(self.embedding_dim)
         self.convs = nn.ModuleList(
-            [nn.Conv2d(chanel_num, filter_num, (size, embedding_dimension + position_embedding_dimension)) for size in
+            [nn.Conv2d(chanel_num, filter_num, (size, self.embedding_dim)) for size in
              filter_sizes])
         self.dropout = nn.Dropout(args.dropout)
-        self.fc = nn.Linear(len(filter_sizes) * filter_num, class_num)
+        self.fc = nn.Sequential(
+            nn.Linear(len(filter_sizes) * filter_num, class_num),
+        )
 
-    def forward(self, x1, x2):
-        zeros = torch.zeros([x2.size(0), x2.size(1)]).long()
-        ones = torch.ones([x1.size(0), x1.size(1)]).long()
-        if self.args.cuda:
-            zeros = zeros.cuda()
-            ones = ones.cuda()
-        ones_embedding = self.position_embedding(ones)
-        zeros_embedding = self.position_embedding(zeros)
+    def forward(self, x, position_tensor):
+        position_embedding = self.position_embedding(position_tensor)
         if self.embedding2:
-            x1_1 = torch.cat([self.embedding(x1), ones_embedding], dim=-1)
-            x1_2 = torch.cat([self.embedding2(x1), ones_embedding], dim=-1)
-            x2_1 = torch.cat([self.embedding(x2), zeros_embedding], dim=-1)
-            x2_2 = torch.cat([self.embedding2(x2), zeros_embedding], dim=-1)
-            x1 = torch.stack([x1_1, x1_2], dim=1)
-            x2 = torch.stack([x2_1, x2_2], dim=1)
-            x = torch.cat([x1, x2], dim=-2)
+            x1 = torch.cat([self.embedding(x), position_embedding], dim=-1)
+            x2 = torch.cat([self.embedding2(x), position_embedding], dim=-1)
+            x = torch.stack([x1, x2], dim=1)
         else:
-            x1 = torch.cat([self.embedding(x1), ones_embedding], dim=-1)
-            x2 = torch.cat([self.embedding(x2), zeros_embedding], dim=-1)
-            x = torch.cat([x1, x2], dim=-2)
+            x = torch.cat([self.embedding(x), position_embedding], dim=-1)
             x = x.unsqueeze(1)
+        x, attn_weights = self.attention(x)
         x = [F.relu(conv(x)).squeeze(3) for conv in self.convs]
         x = [F.max_pool1d(item, item.size(2)).squeeze(2) for item in x]
         x = torch.cat(x, 1)

@@ -7,7 +7,7 @@ def analyze_result(type):
         text = r.readlines()
     import re
     result = []
-    with codecs.open("result.txt", 'r', 'utf-8') as r:
+    with codecs.open("cl_result.txt", 'r', 'utf-8') as r:
         for index, line in enumerate(r.readlines()):
             if re.search(r"^" + type + "\t[^" + type + "]", line):
                 context = line.split("\t")

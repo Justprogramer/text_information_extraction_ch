@@ -1,17 +1,13 @@
 # -*-coding:utf-8-*-
 import argparse
 
-import os
-import pickle
-
 import torch
 import torchtext.data as data
 from torchtext.vocab import Vectors
 
-import dataset
 import cl_model
 import cl_train
-from ner_tool import ner_tool
+import dataset
 
 parser = argparse.ArgumentParser(description='TextCNN text classifier')
 # learning
@@ -38,6 +34,7 @@ parser.add_argument('-filter-sizes', type=str, default='3,4,5',
                     help='comma-separated filter sizes to use for convolution')
 
 parser.add_argument('-static', type=bool, default=True, help='whether to use static pre-trained word vectors')
+parser.add_argument('-seed', type=int, default=42, help="random seed for initialization")
 parser.add_argument('-non-static', type=bool, default=True,
                     help='whether to fine-tune static pre-trained word vectors')
 parser.add_argument('-multichannel', type=bool, default=True, help='whether to use 2 channel of word vectors')
@@ -52,6 +49,8 @@ parser.add_argument('-device', type=int, default=0, help='device to use for iter
 parser.add_argument('-snapshot', type=str, default='./snapshot/cl_model.pkl',
                     help='filename of model snapshot [default: None]')
 args = parser.parse_args()
+
+torch.manual_seed(args.seed)
 
 
 def load_word_vectors(model_name, model_path):
@@ -82,7 +81,7 @@ def load_dataset(text_field, label_field, args, **kwargs):
 
 
 print('Loading data...')
-text_field = data.Field()
+text_field = data.Field(include_lengths=True)
 label_field = data.Field(sequential=False)
 train_iter, dev_iter = load_dataset(text_field, label_field, args, device=-1, repeat=False, shuffle=True)
 
@@ -97,7 +96,7 @@ args.class_num = len(label_field.vocab) - 1
 args.label = label_field.vocab.itos
 args.label.remove('<unk>')
 args.cuda = args.device != -1 and torch.cuda.is_available()
-args.filter_sizes = [int(size) for size in args.filter_sizes.split(',')]
+args.filter_sizes = [int(size) for size in str(args.filter_sizes).split(',')]
 
 print('Parameters:')
 for attr, value in sorted(args.__dict__.items()):
