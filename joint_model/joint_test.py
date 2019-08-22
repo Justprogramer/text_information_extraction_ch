@@ -9,9 +9,8 @@ from torchtext import data
 from torchtext.vocab import Vectors
 
 import dataset as cl_dataset
-import cl_model
-import cl_train
-from ner_module import NER
+from cl_model_attention import cl_train, cl_model
+from ner_model.ner_module import NER
 
 
 def load_word_vectors(model_name, model_path):

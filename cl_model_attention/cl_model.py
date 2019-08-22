@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from TorchCRF import CRF
 
 
 class SelfAttention(nn.Module):
@@ -27,6 +28,8 @@ class TextCNN(nn.Module):
     def __init__(self, args):
         super(TextCNN, self).__init__()
         self.args = args
+        self.use_crf = args.crf
+        self.pad_index = args.pad_index
 
         class_num = args.class_num
         chanel_num = 1
@@ -35,9 +38,7 @@ class TextCNN(nn.Module):
 
         vocabulary_size = args.vocabulary_size
         embedding_dimension = args.embedding_dim
-        position_embedding_dimension = args.position_embedding_dim
         self.embedding = nn.Embedding(vocabulary_size, embedding_dimension)
-        self.position_embedding = nn.Embedding(2, args.position_embedding_dim)
         if args.static:
             self.embedding = self.embedding.from_pretrained(args.vectors, freeze=not args.non_static)
         if args.multichannel:
@@ -45,24 +46,37 @@ class TextCNN(nn.Module):
             chanel_num += 1
         else:
             self.embedding2 = None
-        self.embedding_dim = embedding_dimension + position_embedding_dimension
+        self.embedding_dim = embedding_dimension
         self.attention = SelfAttention(self.embedding_dim)
         self.convs = nn.ModuleList(
-            [nn.Conv2d(chanel_num, filter_num, (size, self.embedding_dim)) for size in
+            [nn.Conv2d(in_channels=chanel_num, out_channels=filter_num, kernel_size=(size, self.embedding_dim),
+                       padding=0) for size in
              filter_sizes])
         self.dropout = nn.Dropout(args.dropout)
         self.fc = nn.Sequential(
             nn.Linear(len(filter_sizes) * filter_num, class_num),
         )
+        if self.use_crf:
+            self.crf = CRF(class_num)
 
-    def forward(self, x, position_tensor):
-        position_embedding = self.position_embedding(position_tensor)
+    def forward(self, x):
+        emissions = self.cnn_forward(x)
+        if self.use_crf:
+            emissions = emissions.unsqueeze(0)
+            return torch.LongTensor(self.crf.decode(emissions))
+        return emissions
+
+    def loss(self, x, y):
+        emissions = self.cnn_forward(x)
+        emissions = emissions.unsqueeze(0)
+        loss = self.crf(emissions, y)
+        return loss
+
+    def cnn_forward(self, x):
         if self.embedding2:
-            x1 = torch.cat([self.embedding(x), position_embedding], dim=-1)
-            x2 = torch.cat([self.embedding2(x), position_embedding], dim=-1)
-            x = torch.stack([x1, x2], dim=1)
+            x = torch.stack([self.embedding(x), self.embedding2(x)], dim=1)
         else:
-            x = torch.cat([self.embedding(x), position_embedding], dim=-1)
+            x = self.embedding(x)
             x = x.unsqueeze(1)
         x, attn_weights = self.attention(x)
         x = [F.relu(conv(x)).squeeze(3) for conv in self.convs]

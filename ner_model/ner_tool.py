@@ -9,7 +9,7 @@ from torchtext.datasets import SequenceTaggingDataset
 from sklearn.metrics import f1_score, accuracy_score, recall_score, precision_score
 
 from util.log import logger
-from ner_config import DEVICE, DEFAULT_CONFIG
+from ner_model.ner_config import DEVICE, DEFAULT_CONFIG
 
 seed = 2019
 torch.manual_seed(seed)

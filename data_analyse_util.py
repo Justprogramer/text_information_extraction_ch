@@ -201,15 +201,13 @@ def create_cl_data(evidence_paragraph_dict, type=None):
             # print("文档《%s》没有对应的数据标签\n" % d)
             continue
         evidence_content = evidence_paragraph_dict[d]
-        last_paragraph = None
-        last_last_paragraph = None
         for paragraph in evidence_content:
             paragraph = "。".join(paragraph)
             paragraph = my_util.clean_text(paragraph)
             if paragraph[-1] not in symbol_list:
                 paragraph += "。"
             paragraph_type = "O"
-            if len(paragraph) <= 0:
+            if len(paragraph) <= 4:
                 continue
             for [A, O] in opinion_dict[d]:
                 find_o, find_a = -1, -1
@@ -232,28 +230,22 @@ def create_cl_data(evidence_paragraph_dict, type=None):
                     if find_e == 0 and find_t > -1 or find_c > -1:
                         paragraph_type = "E"
                         break
-            context = paragraph + "\t" + ("" if last_paragraph is None else last_paragraph) + "\t" \
-                      + ("" if last_last_paragraph is None else last_last_paragraph)
-            last_last_paragraph = last_paragraph
-            last_paragraph = paragraph
             if paragraph_type == "E":
-                text.append(["E", context])
+                text.append(["E", paragraph])
                 evidence_count += 1
             elif paragraph_type == "V":
-                text.append(["V", context])
+                text.append(["V", paragraph])
                 view_count += 1
             else:
                 if type == "train" and other_count % 10 == 0:
-                    text.append(["O", context])
+                    text.append(["O", paragraph])
                 else:
-                    text.append(["O", context])
+                    text.append(["O", paragraph])
                 other_count += 1
     with codecs.open('./data/%s.tsv' % type, "a", "utf-8") as out_file:
         tsv_writer = csv.writer(out_file, delimiter='\t')
         for line in text:
-            if len(line[1]) <= 0:
-                continue
-            tsv_writer.writerow([line[0], line[1].split("\t")[0], line[1].split("\t")[1], line[1].split("\t")[2]])
+            tsv_writer.writerow([line[0], line[1]])
 
 
 def create_ner_data(evidence_paragraph_dict, type=None):

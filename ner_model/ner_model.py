@@ -8,7 +8,7 @@ from torchtext.vocab import Vectors
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from util.log import logger
-from ner_config import DEVICE, DEFAULT_CONFIG
+from ner_model.ner_config import DEVICE, DEFAULT_CONFIG
 
 
 class Config(object):

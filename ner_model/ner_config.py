@@ -20,8 +20,8 @@ DEFAULT_CONFIG = {
     'vocabulary_size': 0,
     'word_vocab': None,
     'tag_vocab': None,
-    'save_path': './saves',
-    'pretrained_path': './pretrained',
+    'save_path': '../saves',
+    'pretrained_path': '../pretrained',
     'pretrained_name': 'sgns.zhihu.word',
     'max_patience': 20,
 }

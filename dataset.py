@@ -6,11 +6,11 @@ import logging
 
 jieba.setLogLevel(logging.INFO)
 
-regex = re.compile(r'[^\u4e00-\u9fa5aA-Za-z0-9]')
+regex = re.compile(r'[^\u4e00-\u9fa5aA-Za-z]')
 
 
 def word_cut(text):
-    # text = regex.sub(' ', text)
+    text = regex.sub(' ', text)
     return [word for word in text if word.strip()]
 
 
@@ -26,12 +26,10 @@ def get_dataset(path, text_field, label_field):
     text_field.tokenize = word_cut
     train, dev = data.TabularDataset.splits(
         path=path, format='tsv', skip_header=False,
-        train='train.tsv', validation='test.tsv',
+        train='cl_train.tsv', validation='cl_test.tsv',
         fields=[
             ('label', label_field),
-            ('text1', text_field),
-            ('text2', text_field),
-            ('text3', text_field)
+            ('text', text_field)
         ]
     )
     return train, dev

@@ -3,9 +3,9 @@ import torchtext.data as data
 from torchtext.vocab import Vectors
 
 import dataset
-import joint_config
+from joint_model import joint_config
 import joint_model
-from joint_train import *
+from joint_model.joint_train import *
 import dill as pickle
 
 

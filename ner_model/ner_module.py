@@ -5,9 +5,9 @@ from tqdm import tqdm
 from util.learning import adjust_learning_rate
 from util.log import logger
 
-from ner_config import DEVICE, DEFAULT_CONFIG
+from ner_model.ner_config import DEVICE, DEFAULT_CONFIG
 from ner_model import Config, BiLstmCrf
-from ner_tool import ner_tool
+from ner_model.ner_tool import ner_tool
 from util.convert import iob_ranges
 
 seed = 2019

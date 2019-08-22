@@ -5,8 +5,7 @@ import torch
 import torchtext.data as data
 from torchtext.vocab import Vectors
 
-import cl_model
-import cl_train
+from cl_model_attention import cl_train, cl_model, cl_tool
 import dataset
 
 parser = argparse.ArgumentParser(description='TextCNN text classifier')
@@ -19,7 +18,7 @@ parser.add_argument('-epochs', type=int, default=10000, help='number of epochs f
 parser.add_argument('-batch-size', type=int, default=32, help='batch size for training [default: 128]')
 parser.add_argument('-log-interval', type=int, default=1,
                     help='how many steps to wait before logging training status [default: 1]')
-parser.add_argument('-save-dir', type=str, default='snapshot', help='where to save the snapshot')
+parser.add_argument('-save-dir', type=str, default='../cl_snapshot', help='where to save the snapshot')
 parser.add_argument('-max_patience', type=int, default=10,
                     help='iteration numbers to stop without performance increasing')
 parser.add_argument('-save-best', type=bool, default=True, help='whether to save when get best performance')
@@ -38,16 +37,18 @@ parser.add_argument('-seed', type=int, default=42, help="random seed for initial
 parser.add_argument('-non-static', type=bool, default=True,
                     help='whether to fine-tune static pre-trained word vectors')
 parser.add_argument('-multichannel', type=bool, default=True, help='whether to use 2 channel of word vectors')
-parser.add_argument('-pretrained-name', type=str, default='sgns.zhihu.word',
+parser.add_argument('-pretrained-name', type=str, default='sgns.renmin.bigram-char',
                     help='filename of pre-trained word vectors')
-parser.add_argument('-pretrained-path', type=str, default='pretrained', help='path of pre-trained word vectors')
+parser.add_argument('-pretrained-path', type=str, default='../pretrained', help='path of pre-trained word vectors')
 
 # device
 parser.add_argument('-device', type=int, default=0, help='device to use for iterate data, -1 mean cpu [default: -1]')
 
 # option
-parser.add_argument('-snapshot', type=str, default='./snapshot/cl_model.pkl',
+parser.add_argument('-snapshot', type=str, default='../cl_snapshot/cl_model.pkl',
                     help='filename of model snapshot [default: None]')
+# option
+parser.add_argument('-crf', type=bool, default=True, help='whether use crf')
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
@@ -59,7 +60,7 @@ def load_word_vectors(model_name, model_path):
 
 
 def load_dataset(text_field, label_field, args, **kwargs):
-    train_dataset, dev_dataset = dataset.get_dataset('data', text_field, label_field)
+    train_dataset, dev_dataset = dataset.get_dataset('../data', text_field, label_field)
     if args.static and args.pretrained_name and args.pretrained_path:
         vectors = load_word_vectors(args.pretrained_name, args.pretrained_path)
         text_field.build_vocab(train_dataset, dev_dataset, vectors=vectors)
@@ -84,6 +85,9 @@ print('Loading data...')
 text_field = data.Field(include_lengths=True)
 label_field = data.Field(sequential=False)
 train_iter, dev_iter = load_dataset(text_field, label_field, args, device=-1, repeat=False, shuffle=True)
+if args.crf:
+    train_iter = cl_tool.get_crf_dataset(text_field.vocab.stoi, label_field.vocab.stoi, '../data/crf_cl_train.tsv')
+    dev_iter = cl_tool.get_crf_dataset(text_field.vocab.stoi, label_field.vocab.stoi, '../data/crf_cl_test.tsv')
 
 args.vocabulary_size = len(text_field.vocab)
 if args.static:
@@ -92,6 +96,7 @@ if args.static:
 if args.multichannel:
     args.static = True
     args.non_static = True
+args.pad_index = args.text_field.vocab.stoi['<pad>']
 args.class_num = len(label_field.vocab) - 1
 args.label = label_field.vocab.itos
 args.label.remove('<unk>')
