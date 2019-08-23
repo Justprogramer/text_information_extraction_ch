@@ -103,7 +103,7 @@ class MyPro(DataProcessor):
 
     def get_test_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "cl_test.json")), 'test')
+            self._read_tsv(os.path.join(data_dir, "cl_test.tsv")), 'test')
 
     def get_labels(self):
         return ["O", "E", "V"]
@@ -329,10 +329,10 @@ def val(model, processor, args, label_list, tokenizer, device):
         logits = logits.detach().cpu().numpy()
         label_ids = label_ids.to('cpu').numpy()
 
-    print(len(gt))
+    logger.info("length:%d", len(gt))
     f1 = np.mean(metrics.f1_score(predict, gt, average='macro'))
-    print(f1)
-    print(metrics.classification_report(predict, gt, target_names=["O", "E", "V"]))
+    logger.info("eval_f1_score:%d", f1)
+    logger.info("eval report:\n%s", metrics.classification_report(predict, gt, target_names=["O", "E", "V"]))
 
     return f1
 
@@ -381,9 +381,13 @@ def test(model, processor, args, label_list, tokenizer, device):
         logits = logits.detach().cpu().numpy()
         label_ids = label_ids.to('cpu').numpy()
 
-    f1 = np.mean(metrics.f1_score(predict, gt, average=None))
-    print('F1 score in text set is {}'.format(f1))
-
+    logger.info("length:%d", len(gt))
+    f1 = np.mean(metrics.f1_score(predict, gt, average='macro'))
+    logger.info("test_f1_score:%d", f1)
+    report = metrics.classification_report(predict, gt, target_names=["O", "E", "V"])
+    with codecs.open("bert_result.txt", "w", "utf-8") as w:
+        w.write(report)
+    logger.info("test_report:\n%s", report)
     return f1
 
 
@@ -425,10 +429,6 @@ def main():
     if not args.do_train and not args.do_eval:
         raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
-    if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
-    os.makedirs(args.output_dir, exist_ok=True)
-
     task_name = args.task_name.lower()
 
     if task_name not in processors:
@@ -439,20 +439,40 @@ def main():
     num_labels = len(label_list)
 
     tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
-
-    train_examples = None
-    num_train_steps = None
-    if args.do_train:
-        train_examples = processor.get_train_examples(args.data_dir)
-        num_train_steps = int(
-            len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
-
     # Prepare model
     model = BertForSequenceClassification.from_pretrained(args.bert_model,
                                                           cache_dir=PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_{}'.format(
                                                               args.local_rank),
                                                           num_labels=num_labels)
-
+    train_examples = None
+    num_train_steps = None
+    if args.do_train:
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir, exist_ok=True)
+        train_examples = processor.get_train_examples(args.data_dir)
+        num_train_steps = int(
+            len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
+        if args.fp16:
+            param_optimizer = [(n, param.clone().detach().to('cpu').float().requires_grad_()) \
+                               for n, param in model.named_parameters()]
+        elif args.optimize_on_cpu:
+            param_optimizer = [(n, param.clone().detach().to('cpu').requires_grad_()) \
+                               for n, param in model.named_parameters()]
+        else:
+            param_optimizer = list(model.named_parameters())
+        no_decay = ['bias', 'gamma', 'beta']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+             'weight_decay_rate': 0.01},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay_rate': 0.0}
+        ]
+        t_total = num_train_steps
+        if args.local_rank != -1:
+            t_total = t_total // torch.distributed.get_world_size()
+        optimizer = BertAdam(optimizer_grouped_parameters,
+                             lr=args.learning_rate,
+                             warmup=args.warmup_proportion,
+                             t_total=t_total)
     if args.fp16:
         model.half()
     model.to(device)
@@ -463,29 +483,6 @@ def main():
     elif n_gpu > 1:
         model = torch.nn.DataParallel(model)
 
-    # Prepare optimizer
-    if args.fp16:
-        param_optimizer = [(n, param.clone().detach().to('cpu').float().requires_grad_()) \
-                           for n, param in model.named_parameters()]
-    elif args.optimize_on_cpu:
-        param_optimizer = [(n, param.clone().detach().to('cpu').requires_grad_()) \
-                           for n, param in model.named_parameters()]
-    else:
-        param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'gamma', 'beta']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay_rate': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay_rate': 0.0}
-    ]
-    t_total = num_train_steps
-    if args.local_rank != -1:
-        t_total = t_total // torch.distributed.get_world_size()
-    optimizer = BertAdam(optimizer_grouped_parameters,
-                         lr=args.learning_rate,
-                         warmup=args.warmup_proportion,
-                         t_total=t_total)
-
-    global_step = 0
     if args.do_train:
         train_features = convert_examples_to_features(
             train_examples, label_list, args.max_seq_length, tokenizer, show_exp=False)
@@ -551,9 +548,9 @@ def main():
                 }
                 torch.save(checkpoint, args.model_save_path)
             else:
-                print('f1 score = {}'.format(f1))
+                logger.info('flags: %d, f1 score = %d, best_score = %d', flags, f1, best_score)
                 flags += 1
-                if flags >= 10:
+                if flags >= 6:
                     break
 
     model.load_state_dict(torch.load(args.model_save_path)['state_dict'])

@@ -10,7 +10,7 @@ DEFAULT_CONFIGS = {
     "do_eval": True,  # 验证模式
     "do_lower_case": False,  # 英文字符的大小写转换，对于中文来说没啥用
     "train_batch_size": 4,  # 训练时batch大小
-    "eval_batch_size": 1,  # 验证时batch大小
+    "eval_batch_size": 4,  # 验证时batch大小
     "learning_rate": 5e-5,  # Adam初始学习步长
     "num_train_epochs": 100.0,  # 训练的epochs次数
     "warmup_proportion": 0.1,  # Proportion of training to perform linear learning rate warmup for.
